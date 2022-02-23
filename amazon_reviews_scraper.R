@@ -2,23 +2,29 @@
 install.packages("pacman")
 library("pacman")
 #p_load allows the user to load one or more packages as a substitute for the library function
-pacman::p_load(XML, dplyr, stringr, rvest, audio)
+pacman::p_load(XML, dplyr, stringr, rvest, audio, svDialogs,here)
+
+here::dr_here()
 
 # Creating a trim function to remove all white spaces
 trim <- function (x) gsub("^\\s+|\\s+$", "", x)
 
 #Initialising the product code of the product you want to examine 
 #View the product in Amazon, get the product code from its URL. It looks something like this: B073HCFZM7
-prod_code = "B075QMZH2L"
+#Open a pop-up window to insert the ASIN NUMBER
+
+ASIN <- dlgInput("Insert ASIN", Sys.info()["ASIN"])$res
 
 #Amazon's URL is easy to build. Just concatenate the product code at the end
-url <- paste0("https://www.amazon.com/dp/", prod_code)
+url_6 <-  paste0("https://www.amazon.it/dp/",ASIN,"?ref_=ast_sto_dp")
 #Read the HTML source of the URL and store it in doc
-doc <- read_html(url)
 
+doc2 <- read_html(url_6)
+
+doc <- doc2
 #Obtain the product name. The product name is stored in the 'doc' html. '#productTitle' gives the product name
 #Also trim the spaces and new lines
-prod <- html_nodes(doc, "#productTitle") %>% html_text() %>% gsub("\n", "", .) %>% trim()
+prod <- html_nodes(doc2, "#productTitle") %>% html_text() %>% gsub("\n", "", .) %>% trim()
 
 #Now we have got the Product name!
 prod
@@ -146,10 +152,10 @@ amazon_scraper <- function(doc, reviewer = T, delay = 0){
                      rver_url, rver_avgrating_10, rver_numrev, rver_numhelpful, rver_rank, stringsAsFactors = F)
     
   } #else df <- data.frame(title, author, date, ver.purchase, format, stars, comments, helpful, stringsAsFactors = F)
-    # Removing 'author', 'helpful' from the dataframe. (Resolving the open issue: Error in data.frame(title, author, date, ver.purchase, format, stars,  arguments imply differing number of rows) 
-    # Amazon.com had changed the HTML code of the reviews page. Due to different HTML nodes, this script to extract author, and helpful votes did not work
-    # I added the right HTML tags in the code, but still removed them from the data frame
-    else df <- data.frame(title, date, ver.purchase, format, stars, comments, stringsAsFactors = F)
+  # Removing 'author', 'helpful' from the dataframe. (Resolving the open issue: Error in data.frame(title, author, date, ver.purchase, format, stars,  arguments imply differing number of rows) 
+  # Amazon.com had changed the HTML code of the reviews page. Due to different HTML nodes, this script to extract author, and helpful votes did not work
+  # I added the right HTML tags in the code, but still removed them from the data frame
+  else df <- data.frame(title, date, ver.purchase, format, stars, comments, stringsAsFactors = F)
   
   return(df)
 }
@@ -163,7 +169,7 @@ reviews_all <- NULL
 
 #Extracting the first ten pages of reviews and storing it in 'reviews_all' list variable
 for(page_num in 1:pages){
-  url <- paste0("http://www.amazon.com/product-reviews/",prod_code,"/?pageNumber=", page_num)
+  url <- paste0("http://www.amazon.it/product-reviews/",ASIN,"/?pageNumber=",page_num)
   doc <- read_html(url)  
   reviews <- amazon_scraper(doc, reviewer = F, delay = 2)
   reviews_all <- rbind(reviews_all, cbind(prod, reviews))
@@ -171,8 +177,13 @@ for(page_num in 1:pages){
 
 #Check the structure of 'reviews_all' list
 str(reviews_all)
-#Reviews:
+
+cols_to_be_rectified <- names(reviews_all)[vapply(df, is.character, logical(1))]
+reviews_all[,cols_to_be_rectified] <- lapply(reviews_all[,cols_to_be_rectified], trimws)
+
 reviews_all$comments
+
+
 
 #Now we have obtained the first 10 pages of reviews
 #We will do a sentimental analysis of these reviews/comments. Sentiment analysis is a Natural Language Processing method
